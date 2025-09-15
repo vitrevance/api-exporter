@@ -1,4 +1,4 @@
-package json
+package value
 
 import (
 	"github.com/vitrevance/api-exporter/pkg/transformer"

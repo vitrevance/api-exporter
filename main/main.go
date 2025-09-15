@@ -8,11 +8,22 @@ import (
 	"github.com/vitrevance/api-exporter/pkg/transformer"
 	"gopkg.in/yaml.v3"
 
+	_ "github.com/vitrevance/api-exporter/pkg/transformer/array"
 	_ "github.com/vitrevance/api-exporter/pkg/transformer/field"
+	_ "github.com/vitrevance/api-exporter/pkg/transformer/http"
+	_ "github.com/vitrevance/api-exporter/pkg/transformer/parser"
+	_ "github.com/vitrevance/api-exporter/pkg/transformer/print"
+	_ "github.com/vitrevance/api-exporter/pkg/transformer/value"
 )
+
+type JobConfig struct {
+	JobName string                          `yaml:"job_name"`
+	Steps   []transformer.TransformerConfig `yaml:"steps"`
+}
 
 type Config struct {
 	Transformers map[string]transformer.TransformerConfig `yaml:"transformers"`
+	Jobs         []JobConfig                              `yaml:"jobs"`
 }
 
 func main() {
@@ -28,5 +39,24 @@ func main() {
 	err = yaml.Unmarshal(bytes, cfg)
 	if err != nil {
 		log.Fatalf("failed to read config: %v", err)
+	}
+
+	for _, job := range cfg.Jobs {
+		log.Println("Starting job ", job.JobName)
+		ctx := &transformer.TransformationContext{
+			Object: make(map[string]any),
+			Result: make(map[string]any),
+		}
+		for _, step := range job.Steps {
+			err := step.Transformer.Transform(ctx)
+			if err != nil {
+				log.Printf("[ERROR] step failed: %v\n", err)
+				break
+			}
+			ctx = &transformer.TransformationContext{
+				Object: ctx.Result,
+				Result: make(map[string]any),
+			}
+		}
 	}
 }
