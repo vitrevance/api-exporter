@@ -305,6 +305,9 @@ func (this *httpTransformer) Transform(ctx *transformer.TransformationContext) e
 		return err
 	}
 	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
 
 	obj, err := responseToMap(resp)
 	if err != nil {

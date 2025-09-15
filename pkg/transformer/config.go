@@ -37,13 +37,15 @@ func RegisterTransformerFactory(name string, factory TransformerFactory) error {
 }
 
 type TransformerConfig struct {
-	Type        string `yaml:"type"`
+	Type        string
+	KeepContext bool
 	Transformer Transformer
 }
 
 func (this *TransformerConfig) UnmarshalYAML(value *yaml.Node) error {
 	type typeHeader struct {
-		Type string `yaml:"type"`
+		Type        string `yaml:"type"`
+		KeepContext bool   `yaml:"keep_ctx"`
 	}
 	t := &typeHeader{}
 	err := value.Decode(t)
@@ -54,6 +56,7 @@ func (this *TransformerConfig) UnmarshalYAML(value *yaml.Node) error {
 		return fmt.Errorf("transformer type is required")
 	}
 	this.Type = t.Type
+	this.KeepContext = t.KeepContext
 	factory := transformerTypes[this.Type]
 
 	if factory == nil {

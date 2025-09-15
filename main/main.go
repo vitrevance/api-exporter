@@ -48,15 +48,18 @@ func main() {
 			Result: make(map[string]any),
 		}
 		for _, step := range job.Steps {
+			if !step.KeepContext {
+				ctx = &transformer.TransformationContext{
+					Object: ctx.Result,
+					Result: make(map[string]any),
+				}
+			}
 			err := step.Transformer.Transform(ctx)
 			if err != nil {
 				log.Printf("[ERROR] step failed: %v\n", err)
 				break
 			}
-			ctx = &transformer.TransformationContext{
-				Object: ctx.Result,
-				Result: make(map[string]any),
-			}
+
 		}
 	}
 }
