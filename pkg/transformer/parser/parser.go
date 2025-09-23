@@ -37,6 +37,7 @@ func (this *valueTransformer) Transform(ctx *transformer.TransformationContext) 
 				return err
 			}
 			ctx.Result = arr
+			break
 		}
 		ctx.Result = obj
 		break
@@ -47,6 +48,8 @@ func (this *valueTransformer) Transform(ctx *transformer.TransformationContext) 
 		}
 		ctx.Result = b
 		break
+	case "as_string":
+		ctx.Result = string(bytes)
 	}
 	return nil
 }

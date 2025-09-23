@@ -30,7 +30,7 @@ type HttpTargetConfig struct {
 	QueryParams map[string]string `yaml:"query_params"`
 
 	// Request body as bytes
-	Body []byte `yaml:"body"`
+	Body string `yaml:"body"`
 
 	// Basic auth credentials
 	BasicAuthUsername string `yaml:"basic_auth_username"`
@@ -97,8 +97,6 @@ func (c *HttpTargetConfig) MergeMap(cfg map[string]any) error {
 			// Accept string or []byte for simplicity
 			switch v := value.(type) {
 			case string:
-				c.Body = []byte(v)
-			case []byte:
 				c.Body = v
 			default:
 				return fmt.Errorf("invalid type for body, expected string or []byte")
@@ -157,8 +155,6 @@ func (c *HttpTargetConfig) MergeMap(cfg map[string]any) error {
 			} else {
 				return fmt.Errorf("invalid type for follow_redirects, expected bool")
 			}
-		default:
-			return errors.New("unknown config key: " + key)
 		}
 	}
 	return nil
@@ -255,7 +251,7 @@ func (c *HttpTargetConfig) CreateHttpRequest() (*http.Request, error) {
 
 	var bodyReader io.Reader
 	if len(c.Body) > 0 {
-		bodyReader = bytes.NewReader(c.Body)
+		bodyReader = bytes.NewReader([]byte(c.Body))
 	}
 
 	req, err := http.NewRequest(method, reqURL.String(), bodyReader)

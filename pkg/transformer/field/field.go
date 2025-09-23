@@ -33,7 +33,7 @@ func (this *jsonTransformer) Transform(ctx *transformer.TransformationContext) e
 		}
 		src, ok = json[*this.Source]
 		if !ok {
-			return fmt.Errorf("json object has no field %v", this.Source)
+			return fmt.Errorf("json object has no field %v", *this.Source)
 		}
 	}
 

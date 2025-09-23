@@ -11,8 +11,11 @@ import (
 	_ "github.com/vitrevance/api-exporter/pkg/transformer/array"
 	_ "github.com/vitrevance/api-exporter/pkg/transformer/field"
 	_ "github.com/vitrevance/api-exporter/pkg/transformer/http"
+	_ "github.com/vitrevance/api-exporter/pkg/transformer/js"
 	_ "github.com/vitrevance/api-exporter/pkg/transformer/parser"
 	_ "github.com/vitrevance/api-exporter/pkg/transformer/print"
+	_ "github.com/vitrevance/api-exporter/pkg/transformer/regex"
+	_ "github.com/vitrevance/api-exporter/pkg/transformer/sequence"
 	_ "github.com/vitrevance/api-exporter/pkg/transformer/value"
 )
 
@@ -41,25 +44,32 @@ func main() {
 		log.Fatalf("failed to read config: %v", err)
 	}
 
+	transformers := make(map[string]transformer.Transformer)
+	for k, v := range cfg.Transformers {
+		transformers[k] = v.Transformer
+	}
+
 	for _, job := range cfg.Jobs {
-		log.Println("Starting job ", job.JobName)
+		log.Println("Starting job", job.JobName)
 		ctx := &transformer.TransformationContext{
-			Object: make(map[string]any),
-			Result: make(map[string]any),
+			Object:       make(map[string]any),
+			Result:       make(map[string]any),
+			Transformers: transformers,
 		}
-		for _, step := range job.Steps {
+		for i, step := range job.Steps {
 			if !step.KeepContext {
 				ctx = &transformer.TransformationContext{
-					Object: ctx.Result,
-					Result: make(map[string]any),
+					Object:       ctx.Result,
+					Result:       make(map[string]any),
+					Transformers: transformers,
 				}
 			}
 			err := step.Transformer.Transform(ctx)
 			if err != nil {
-				log.Printf("[ERROR] step failed: %v\n", err)
+				log.Printf("[ERROR] step [%d] failed: %v\n", i, err)
 				break
 			}
-
+			log.Printf("[INFO] step [%d] finished\n", i)
 		}
 	}
 }
