@@ -4,6 +4,8 @@ import (
 	"flag"
 	"log"
 	"os"
+	"sync"
+	"time"
 
 	"github.com/vitrevance/api-exporter/pkg/transformer"
 	"gopkg.in/yaml.v3"
@@ -20,8 +22,9 @@ import (
 )
 
 type JobConfig struct {
-	JobName string                          `yaml:"job_name"`
-	Steps   []transformer.TransformerConfig `yaml:"steps"`
+	JobName     string                          `yaml:"job_name"`
+	RunInterval time.Duration                   `yaml:"interval"`
+	Steps       []transformer.TransformerConfig `yaml:"steps"`
 }
 
 type Config struct {
@@ -81,27 +84,42 @@ func main() {
 		transformers[k] = v.Transformer
 	}
 
+	wg := sync.WaitGroup{}
+
 	for _, job := range cfg.Jobs {
-		log.Println("Starting job", job.JobName)
-		ctx := &transformer.TransformationContext{
-			Object:       make(map[string]any),
-			Result:       make(map[string]any),
-			Transformers: transformers,
-		}
-		for i, step := range job.Steps {
-			if !step.KeepContext {
-				ctx = &transformer.TransformationContext{
-					Object:       ctx.Result,
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				log.Println("Starting job", job.JobName)
+				ctx := &transformer.TransformationContext{
+					Object:       make(map[string]any),
 					Result:       make(map[string]any),
 					Transformers: transformers,
 				}
+				for i, step := range job.Steps {
+					if !step.KeepContext {
+						ctx = &transformer.TransformationContext{
+							Object:       ctx.Result,
+							Result:       make(map[string]any),
+							Transformers: transformers,
+						}
+					}
+					err := step.Transformer.Transform(ctx)
+					if err != nil {
+						log.Printf("[ERROR] step [%d] failed: %v\n", i, err)
+						break
+					}
+					log.Printf("[INFO] step [%d] finished\n", i)
+				}
+				log.Println("Finished job", job.JobName)
+				if job.RunInterval == 0 {
+					return
+				}
+				time.Sleep(job.RunInterval)
 			}
-			err := step.Transformer.Transform(ctx)
-			if err != nil {
-				log.Printf("[ERROR] step [%d] failed: %v\n", i, err)
-				break
-			}
-			log.Printf("[INFO] step [%d] finished\n", i)
-		}
+		}()
 	}
+
+	wg.Wait()
 }
