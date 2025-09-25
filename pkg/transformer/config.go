@@ -36,6 +36,10 @@ func RegisterTransformerFactory(name string, factory TransformerFactory) error {
 	return nil
 }
 
+func UnregisterTransformerFactory(name string) {
+	delete(transformerTypes, name)
+}
+
 type TransformerConfig struct {
 	Type        string
 	KeepContext bool
