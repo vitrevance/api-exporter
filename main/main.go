@@ -1,12 +1,13 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"log"
-	"os"
-	"sync"
 	"time"
 
+	"github.com/vitrevance/api-exporter/pkg/fread"
+	"github.com/vitrevance/api-exporter/pkg/runner"
 	"github.com/vitrevance/api-exporter/pkg/transformer"
 	"gopkg.in/yaml.v3"
 
@@ -21,105 +22,71 @@ import (
 	_ "github.com/vitrevance/api-exporter/pkg/transformer/value"
 )
 
-type JobConfig struct {
-	JobName     string                          `yaml:"job_name"`
-	RunInterval time.Duration                   `yaml:"interval"`
-	Steps       []transformer.TransformerConfig `yaml:"steps"`
-}
-
-type Config struct {
-	Transformers map[string]transformer.TransformerConfig `yaml:"transformers"`
-	Jobs         []JobConfig                              `yaml:"jobs"`
-}
-
-func (this *Config) UnmarshalYAML(value *yaml.Node) error {
-	this.Transformers = make(map[string]transformer.TransformerConfig)
-
-	type helperT struct {
-		Transformers map[string]*yaml.Node `yaml:"transformers"`
-	}
-	transformers := helperT{}
-	err := value.Decode(&transformers)
-	if err != nil {
-		return err
-	}
-	for k, _ := range transformers.Transformers {
-		err = transformer.RegisterTransformerFactory(k, transformer.NewAliasTransformerFactory(k))
-		if err != nil {
-			return err
-		}
-	}
-
-	type helper struct {
-		Transformers map[string]transformer.TransformerConfig `yaml:"transformers"`
-		Jobs         []JobConfig                              `yaml:"jobs"`
-	}
-	h := helper{}
-	err = value.Decode(&h)
-	if err != nil {
-		return err
-	}
-	this.Transformers = h.Transformers
-	this.Jobs = h.Jobs
-	return nil
-}
-
 func main() {
 	configPath := flag.String("config", "config.yaml", "path to a config file")
+	reloadIntervalStr := flag.String("reloadInterval", "0s", "config reload interval")
 	flag.Parse()
 
-	bytes, err := os.ReadFile(*configPath)
+	var reloadInterval time.Duration
+	err := yaml.Unmarshal([]byte(*reloadIntervalStr), &reloadInterval)
 	if err != nil {
-		log.Fatalf("failed to read config file: %v", err)
+		log.Fatalf("invalid reloadInterval format: %v", err)
 	}
 
-	cfg := &Config{}
-	err = yaml.Unmarshal(bytes, cfg)
-	if err != nil {
-		log.Fatalf("failed to read config: %v", err)
+	cfgUpdates := reloadConfig(*configPath, reloadInterval)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	for cfg := range cfgUpdates {
+		cancel()
+		ctx, cancel = context.WithCancel(context.Background())
+		cfg.RunJobs(ctx)
 	}
+	cancel()
+}
 
-	transformers := make(map[string]transformer.Transformer)
-	for k, v := range cfg.Transformers {
-		transformers[k] = v.Transformer
-	}
-
-	wg := sync.WaitGroup{}
-
-	for _, job := range cfg.Jobs {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for {
-				log.Println("Starting job", job.JobName)
-				ctx := &transformer.TransformationContext{
-					Object:       make(map[string]any),
-					Result:       make(map[string]any),
-					Transformers: transformers,
-				}
-				for i, step := range job.Steps {
-					if !step.KeepContext {
-						ctx = &transformer.TransformationContext{
-							Object:       ctx.Result,
-							Result:       make(map[string]any),
-							Transformers: transformers,
-						}
-					}
-					err := step.Transformer.Transform(ctx)
-					if err != nil {
-						log.Printf("[ERROR] step [%d] failed: %v\n", i, err)
-						break
-					}
-					log.Printf("[INFO] step [%d] finished\n", i)
-				}
-				log.Println("Finished job", job.JobName)
-				if job.RunInterval == 0 {
+func reloadConfig(path string, reloadInterval time.Duration) <-chan *runner.Config {
+	ch := make(chan *runner.Config)
+	var lastConfig string
+	var cfg *runner.Config
+	go func() {
+		defer close(ch)
+		for {
+			func() {
+				bytes, err := fread.ReadFileOrHTTP(path)
+				if err != nil {
+					log.Printf("[ERROR] failed to reload config file: %v", err)
+					time.Sleep(time.Second * 5)
 					return
 				}
-				time.Sleep(job.RunInterval)
-			}
-		}()
-	}
 
-	wg.Wait()
+				if lastConfig == string(bytes) {
+					log.Println("[INFO] reloaded config with no changes")
+					time.Sleep(reloadInterval)
+					return
+				}
+				lastConfig = string(bytes)
+
+				if cfg != nil {
+					for k, _ := range cfg.Transformers {
+						transformer.UnregisterTransformerFactory(k)
+					}
+				}
+
+				cfg = &runner.Config{}
+				err = yaml.Unmarshal(bytes, cfg)
+				if err != nil {
+					log.Printf("[ERROR] failed to read config: %v", err)
+					time.Sleep(time.Second * 5)
+					return
+				}
+				log.Println("[INFO] reloaded config")
+				ch <- cfg
+			}()
+			if reloadInterval == 0 {
+				return
+			}
+			time.Sleep(reloadInterval)
+		}
+	}()
+	return ch
 }

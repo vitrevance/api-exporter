@@ -12,7 +12,9 @@
             "program": "${workspaceFolder}/main",
             "args": [
                 "-config",
-                "${workspaceFolder}/build/config.yaml"
+                "${workspaceFolder}/build/config.yaml",
+                "-reloadInterval",
+                "5s"
             ]
         }
     ]
