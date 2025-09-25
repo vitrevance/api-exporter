@@ -3,6 +3,9 @@ on:
     tags:
       - 'v*'  # build on release tags
 
+permissions:
+  packages: write  # Allow write access to organization packages
+
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
