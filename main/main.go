@@ -4,6 +4,11 @@ import (
 	"context"
 	"flag"
 	"log"
+	"net/http"
+	"os"
+	"os/signal"
+	"sync"
+	"syscall"
 	"time"
 
 	"github.com/vitrevance/api-exporter/pkg/fread"
@@ -25,6 +30,7 @@ import (
 func main() {
 	configPath := flag.String("config", "config.yaml", "path to a config file")
 	reloadIntervalStr := flag.String("reloadInterval", "0s", "config reload interval")
+	addr := flag.String("addr", "", "address to listen on")
 	flag.Parse()
 
 	var reloadInterval time.Duration
@@ -35,13 +41,55 @@ func main() {
 
 	cfgUpdates := reloadConfig(*configPath, reloadInterval)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	for cfg := range cfgUpdates {
+	if *addr != "" {
+		// Start HTTP server
+		var cfgHandler *runner.Config
+		mux := sync.Mutex{}
+		go func() {
+			log.Printf("Starting HTTP server on %s", *addr)
+			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				mux.Lock()
+				cfg := cfgHandler
+				mux.Unlock()
+				if cfg != nil {
+					cfg.Handle(w, r)
+				}
+			})
+			if err := http.ListenAndServe(*addr, handler); err != nil {
+				log.Fatalf("Failed to start HTTP server: %v", err)
+			}
+		}()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		go func() {
+			for cfg := range cfgUpdates {
+				cancel()
+				mux.Lock()
+				cfgHandler = cfg
+				mux.Unlock()
+				ctx, cancel = context.WithCancel(context.Background())
+				cfg.RunJobs(ctx)
+			}
+		}()
+
+		sigChan := make(chan os.Signal, 1)
+		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+		log.Println("Server started, press Ctrl+C to stop")
+		<-sigChan
+
+		log.Println("Shutting down...")
 		cancel()
-		ctx, cancel = context.WithCancel(context.Background())
-		cfg.RunJobs(ctx)
+	} else {
+		// Original behavior when no address is specified
+		ctx, cancel := context.WithCancel(context.Background())
+		for cfg := range cfgUpdates {
+			cancel()
+			ctx, cancel = context.WithCancel(context.Background())
+			cfg.RunJobs(ctx)
+		}
+		cancel()
 	}
-	cancel()
 }
 
 func reloadConfig(path string, reloadInterval time.Duration) <-chan *runner.Config {

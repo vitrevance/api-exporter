@@ -11,7 +11,7 @@ func (this *Config) RunJobs(ctx context.Context) {
 	for _, job := range this.Jobs {
 		go func() {
 			for {
-				log.Println("Starting job", job.JobName)
+				log.Println("[INFO] Starting job", job.JobName)
 				tctx := &transformer.TransformationContext{
 					Object:       make(map[string]any),
 					Result:       make(map[string]any),
@@ -32,7 +32,7 @@ func (this *Config) RunJobs(ctx context.Context) {
 					}
 					log.Printf("[INFO] step [%d] finished\n", i)
 				}
-				log.Println("Finished job", job.JobName)
+				log.Println("[INFO] Finished job", job.JobName)
 				if job.RunInterval == 0 {
 					return
 				}

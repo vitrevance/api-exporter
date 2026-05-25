@@ -14,7 +14,9 @@
                 "-config",
                 "${workspaceFolder}/build/config.yaml",
                 "-reloadInterval",
-                "5s"
+                "5s",
+                "-addr",
+                "127.0.0.1:8888"
             ]
         }
     ]
