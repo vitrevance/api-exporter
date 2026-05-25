@@ -53,3 +53,28 @@ jobs:
 - regex
 - sequence
 - value
+
+## Transformers as HTTP Handlers
+
+Transformers can also be used as HTTP handlers. When a request is made to the server with a URL path that matches a transformer name, the transformer will be executed with the request data as input.
+
+The request data includes:
+- `method`: The HTTP method of the request
+- `url`: The full URL of the request
+- `headers`: The headers of the request
+- `body`: The body of the request (if present)
+- `query`: The query parameters of the request
+
+The transformer can access this data through the `source` object in its script.
+
+Example configuration:
+
+```yaml
+transformers:
+  ok:
+    type: javascript
+    script: |
+      return {body: "hello world!!! " + source.url, status_code: 200};
+```
+
+In this example, a request to `/ok` will execute the `ok` transformer, which returns a response with the body "hello world!!! " concatenated with the request URL and a status code of 200.
