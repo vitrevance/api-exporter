@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 
 	"github.com/moby/moby/client"
 	"github.com/robertkrimen/otto"
@@ -76,6 +77,9 @@ func (this *jsTransformer) Transform(ctx *transformer.TransformationContext) err
 			return map[string]any{"error": err.Error()}
 		}
 		return m
+	})
+	vm.Set("getenv", func(id string) any {
+		return os.Getenv(id)
 	})
 	value, err := vm.Run(this.Script)
 	if err != nil {
