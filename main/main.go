@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/moby/moby/client"
 	"github.com/vitrevance/api-exporter/pkg/fread"
 	"github.com/vitrevance/api-exporter/pkg/runner"
 	"github.com/vitrevance/api-exporter/pkg/transformer"
@@ -19,6 +20,7 @@ import (
 	_ "github.com/vitrevance/api-exporter/pkg/transformer/array"
 	_ "github.com/vitrevance/api-exporter/pkg/transformer/field"
 	_ "github.com/vitrevance/api-exporter/pkg/transformer/http"
+	"github.com/vitrevance/api-exporter/pkg/transformer/js"
 	_ "github.com/vitrevance/api-exporter/pkg/transformer/js"
 	_ "github.com/vitrevance/api-exporter/pkg/transformer/parser"
 	_ "github.com/vitrevance/api-exporter/pkg/transformer/print"
@@ -30,6 +32,7 @@ import (
 func main() {
 	configPath := flag.String("config", "config.yaml", "path to a config file")
 	reloadIntervalStr := flag.String("reloadInterval", "0s", "config reload interval")
+	dockerFlag := flag.Bool("docker", false, "enable usage of docker socket")
 	addr := flag.String("addr", "", "address to listen on")
 	flag.Parse()
 
@@ -37,6 +40,16 @@ func main() {
 	err := yaml.Unmarshal([]byte(*reloadIntervalStr), &reloadInterval)
 	if err != nil {
 		log.Fatalf("invalid reloadInterval format: %v", err)
+	}
+
+	if *dockerFlag {
+		client, err := client.New(client.FromEnv)
+		if err != nil {
+			log.Fatalf("failed to initialize docker client: %v", err)
+		}
+		js.GlobalExecutionContext = js.ExecutionContext{
+			DockerClient: client,
+		}
 	}
 
 	cfgUpdates := reloadConfig(*configPath, reloadInterval)
