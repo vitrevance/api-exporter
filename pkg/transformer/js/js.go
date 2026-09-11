@@ -2,6 +2,7 @@ package js
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/moby/moby/client"
@@ -50,13 +51,31 @@ func (this *jsTransformer) Transform(ctx *transformer.TransformationContext) err
 		return map[string]any{"error": "undefined transformer"}
 	})
 	vm.Set("docker_container_list", func(filters map[string]map[string]bool) any {
+		if GlobalExecutionContext.DockerClient == nil {
+			return map[string]any{"error": "docker is not enabled"}
+		}
 		containers, err := GlobalExecutionContext.DockerClient.ContainerList(context.Background(), client.ContainerListOptions{
 			Filters: filters,
 		})
 		if err != nil {
 			return map[string]any{"error": err.Error()}
 		}
-		return containers
+		return containers.Items
+	})
+	vm.Set("docker_container_inspect", func(id string) any {
+		if GlobalExecutionContext.DockerClient == nil {
+			return map[string]any{"error": "docker is not enabled"}
+		}
+		container, err := GlobalExecutionContext.DockerClient.ContainerInspect(context.Background(), id, client.ContainerInspectOptions{})
+		if err != nil {
+			return map[string]any{"error": err.Error()}
+		}
+		m := make(map[string]any)
+		err = json.Unmarshal(container.Raw, &m)
+		if err != nil {
+			return map[string]any{"error": err.Error()}
+		}
+		return m
 	})
 	value, err := vm.Run(this.Script)
 	if err != nil {
