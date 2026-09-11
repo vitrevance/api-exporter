@@ -1,12 +1,20 @@
 package js
 
 import (
+	"context"
 	"fmt"
 
+	"github.com/moby/moby/client"
 	"github.com/robertkrimen/otto"
 	"github.com/vitrevance/api-exporter/pkg/transformer"
 	"gopkg.in/yaml.v3"
 )
+
+type ExecutionContext struct {
+	DockerClient *client.Client
+}
+
+var GlobalExecutionContext = ExecutionContext{}
 
 type jsTransformer struct {
 	Script string `yaml:"script"`
@@ -40,6 +48,15 @@ func (this *jsTransformer) Transform(ctx *transformer.TransformationContext) err
 			return taskCtx.Result
 		}
 		return map[string]any{"error": "undefined transformer"}
+	})
+	vm.Set("docker_container_list", func(filters map[string]map[string]bool) any {
+		containers, err := GlobalExecutionContext.DockerClient.ContainerList(context.Background(), client.ContainerListOptions{
+			Filters: filters,
+		})
+		if err != nil {
+			return map[string]any{"error": err.Error()}
+		}
+		return containers
 	})
 	value, err := vm.Run(this.Script)
 	if err != nil {

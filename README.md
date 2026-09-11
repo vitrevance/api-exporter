@@ -78,3 +78,20 @@ transformers:
 ```
 
 In this example, a request to `/ok` will execute the `ok` transformer, which returns a response with the body "hello world!!! " concatenated with the request URL and a status code of 200.
+
+# Docker Client Setup
+
+The exporter can interact with a Docker daemon, for example to inspect containers or manage images within job steps. To enable this functionality, run the exporter with the `-docker` flag.
+
+When enabled, the Docker client is initialized using `client.FromEnv`, which automatically reads the standard Docker environment variables. This allows you to connect to remote Docker hosts or configure TLS securely without code changes.
+
+Set the following environment variables as needed:
+
+- `DOCKER_HOST`: The URL of the Docker daemon (e.g., `tcp://my-docker-host:2375` or `unix:///var/run/docker.sock`).
+- `DOCKER_TLS_VERIFY`: Set to `1` to enable TLS verification for secure communication with the daemon.
+- `DOCKER_CERT_PATH`: Path to the directory containing TLS certificates (`ca.pem`, `cert.pem`, `key.pem`) used for authentication.
+
+## Example Usage
+
+```bash
+DOCKER_HOST=unix:///var/run/docker.sock ./api-exporter -config=config.yaml -docker
