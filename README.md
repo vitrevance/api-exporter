@@ -11,6 +11,26 @@ _api-exporter_ is a flexible service written in Golang that allows configuring a
 - Post processed data in a desired JSON or other format to a target API.
 - Extensible with various step types for flexible API interactions.
 
+## Command-line flags
+
+```text
+-config string
+      Path or HTTP(S) URL of the YAML configuration file (default "config.yaml")
+-reloadInterval duration
+      How often to check and reload the configuration; 0s loads it once (default "0s")
+-addr string
+      HTTP server listen address, such as :8080; when omitted, only jobs are run
+-docker
+      Enable Docker access for JavaScript transformers using Docker client features
+```
+
+For example, start the HTTP server on port 8080 and check for configuration
+updates every 30 seconds:
+
+```bash
+api-exporter -config ./config.yaml -addr :8080 -reloadInterval 30s
+```
+
 ## Example
 
 Fetch data from `https://api.example.com/data` and push it as-is to `https://api.target.com/submit`
@@ -45,6 +65,7 @@ jobs:
 ## Transformation types
 
 - http
+- file
 - array
 - field
 - javascript
@@ -53,6 +74,31 @@ jobs:
 - regex
 - sequence
 - value
+
+### File transformer
+
+Use `operation: read` to load a file. Like the HTTP transformer, the result is
+a map whose `body` field contains binary data (`[]byte`):
+
+```yaml
+- type: file
+  operation: read
+  path: ./input.json
+```
+
+Use `operation: write` to write the current binary or string value. If the
+current value is a map (for example, an HTTP response), its `body` field is
+written:
+
+```yaml
+- type: file
+  operation: write
+  path: ./output.bin
+```
+
+Both `operation` and `path` can also be supplied by fields on the current
+transformation object; those values override the YAML configuration for that
+invocation.
 
 ## Transformers as HTTP Handlers
 
