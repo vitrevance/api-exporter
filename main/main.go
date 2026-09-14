@@ -19,6 +19,7 @@ import (
 
 	_ "github.com/vitrevance/api-exporter/pkg/transformer/array"
 	_ "github.com/vitrevance/api-exporter/pkg/transformer/field"
+	_ "github.com/vitrevance/api-exporter/pkg/transformer/file"
 	_ "github.com/vitrevance/api-exporter/pkg/transformer/http"
 	"github.com/vitrevance/api-exporter/pkg/transformer/js"
 	_ "github.com/vitrevance/api-exporter/pkg/transformer/js"
