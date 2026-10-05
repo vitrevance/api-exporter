@@ -103,6 +103,20 @@ func (this *jsTransformer) Transform(ctx *transformer.TransformationContext) err
 		}
 		return nil
 	})
+	vm.Set("docker_container_restart", func(id string, sig string) any {
+		if GlobalExecutionContext.DockerClient == nil {
+			return map[string]any{"error": "docker is not enabled"}
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+		defer cancel()
+		_, err := GlobalExecutionContext.DockerClient.ContainerRestart(ctx, id, client.ContainerRestartOptions{
+			Signal: sig,
+		})
+		if err != nil {
+			return map[string]any{"error": err.Error()}
+		}
+		return nil
+	})
 	vm.Set("getenv", func(id string) any {
 		return os.Getenv(id)
 	})
