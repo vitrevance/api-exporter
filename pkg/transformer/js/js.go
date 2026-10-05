@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/moby/moby/client"
 	"github.com/robertkrimen/otto"
@@ -51,13 +52,21 @@ func (this *jsTransformer) Transform(ctx *transformer.TransformationContext) err
 		}
 		return map[string]any{"error": "undefined transformer"}
 	})
-	vm.Set("docker_container_list", func(filters map[string]map[string]bool) any {
+	vm.Set("docker_container_list", func(filters map[string][]string, all bool, limit int) any {
 		if GlobalExecutionContext.DockerClient == nil {
 			return map[string]any{"error": "docker is not enabled"}
 		}
-		containers, err := GlobalExecutionContext.DockerClient.ContainerList(context.Background(), client.ContainerListOptions{
-			Filters: filters,
-		})
+		opts := client.ContainerListOptions{
+			All:     all,
+			Limit:   limit,
+			Filters: make(client.Filters),
+		}
+		for k, v := range filters {
+			opts.Filters.Add(k, v...)
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+		defer cancel()
+		containers, err := GlobalExecutionContext.DockerClient.ContainerList(ctx, opts)
 		if err != nil {
 			return map[string]any{"error": err.Error()}
 		}
@@ -67,7 +76,9 @@ func (this *jsTransformer) Transform(ctx *transformer.TransformationContext) err
 		if GlobalExecutionContext.DockerClient == nil {
 			return map[string]any{"error": "docker is not enabled"}
 		}
-		container, err := GlobalExecutionContext.DockerClient.ContainerInspect(context.Background(), id, client.ContainerInspectOptions{})
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+		defer cancel()
+		container, err := GlobalExecutionContext.DockerClient.ContainerInspect(ctx, id, client.ContainerInspectOptions{})
 		if err != nil {
 			return map[string]any{"error": err.Error()}
 		}
@@ -77,6 +88,20 @@ func (this *jsTransformer) Transform(ctx *transformer.TransformationContext) err
 			return map[string]any{"error": err.Error()}
 		}
 		return m
+	})
+	vm.Set("docker_container_kill", func(id string, sig string) any {
+		if GlobalExecutionContext.DockerClient == nil {
+			return map[string]any{"error": "docker is not enabled"}
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+		defer cancel()
+		_, err := GlobalExecutionContext.DockerClient.ContainerKill(ctx, id, client.ContainerKillOptions{
+			Signal: sig,
+		})
+		if err != nil {
+			return map[string]any{"error": err.Error()}
+		}
+		return nil
 	})
 	vm.Set("getenv", func(id string) any {
 		return os.Getenv(id)

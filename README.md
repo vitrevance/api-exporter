@@ -141,3 +141,49 @@ Set the following environment variables as needed:
 
 ```bash
 DOCKER_HOST=unix:///var/run/docker.sock ./api-exporter -config=config.yaml -docker
+```
+
+### Docker functions in JavaScript
+
+When Docker support is enabled, JavaScript transformers can list, inspect, and
+stop containers with these functions:
+
+- `docker_container_list(filters, all, limit)` returns the matching containers.
+  `filters` maps Docker filter names to arrays of accepted values, `all` includes
+  stopped containers, and `limit` sets the maximum number of results. Use `0`
+  for no limit.
+- `docker_container_inspect(id)` returns detailed Docker API information for the
+  container identified by its ID or name.
+- `docker_container_kill(id, signal)` sends a signal such as `SIGTERM` or
+  `SIGKILL` to the container identified by its ID or name. It returns `null` on
+  success.
+
+All three functions return an object with an `error` field if Docker support is
+not enabled or the Docker API request fails.
+
+For example, this transformer finds running containers with the Compose service
+label `worker` and sends `SIGTERM` to each one:
+
+```yaml
+transformers:
+  stop-workers:
+    type: javascript
+    script: |
+      var containers = docker_container_list(
+        {"label": ["com.docker.compose.service=worker"]},
+        false,
+        0
+      );
+      if (containers.error) {
+        return containers;
+      }
+
+      for (var i = 0; i < containers.length; i++) {
+        var result = docker_container_kill(containers[i].Id, "SIGTERM");
+        if (result && result.error) {
+          return result;
+        }
+      }
+
+      return {stopped: containers.length};
+```
